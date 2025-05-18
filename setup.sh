@@ -80,8 +80,35 @@ fi
 # Build frontend if Node.js and npm are available
 if [ -d "frontend" ] && [ "$NODE_AVAILABLE" = true ] && [ "$NPM_AVAILABLE" = true ]; then
     echo -e "${YELLOW}!${NC} Building frontend"
-    cd frontend && npm install && npm run build && cd ..
+    
+    # Enter frontend directory and run build
+    (cd frontend && npm install && npm run build)
+    
+    # Exit with error if build failed
+    if [ ! -d "frontend/static" ] || [ ! -f "frontend/static/index.html" ]; then
+        echo -e "${RED}✗${NC} Frontend build failed or output not found"
+        echo -e "\n${RED}FRONTEND BUILD ERROR${NC}"
+        echo -e "\nThe webpack build failed or did not produce an index.html file.\n"
+        echo -e "${YELLOW}Common issues:${NC}"
+        echo -e "  1. Webpack configuration has incorrect output path"
+        echo -e "  2. React components have syntax errors"
+        echo -e "  3. Missing dependencies in package.json"
+        echo -e "  4. HtmlWebpackPlugin is not configured correctly"
+        echo -e "\n${YELLOW}Try these steps:${NC}"
+        echo -e "  - Run 'cd frontend && npm install && npm run build' to see detailed errors"
+        echo -e "  - Check webpack.config.js to ensure output.path is set to 'static'"
+        echo -e "  - Verify that your package.json has all needed dependencies"
+        echo -e "  - Check for syntax errors in your React components"
+        echo -e "  - Run 'cd frontend && npx webpack --display-error-details' for verbose output\n"
+        exit 1
+    fi
+    
     echo -e "${GREEN}✓${NC} Frontend built successfully"
+    
+    # Ensure the static directory is set up properly
+    mkdir -p static
+    cp -r frontend/static/* static/
+    echo -e "${GREEN}✓${NC} Copied frontend build to static directory"
 elif [ -d "frontend" ]; then
     echo -e "${YELLOW}!${NC} Skipping frontend build (Node.js or npm not available)"
     echo "Use Docker deployment to build the frontend without local Node.js"
