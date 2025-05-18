@@ -1,0 +1,30 @@
+# Build artifacts
+traffic-generator
+static/*
+!static/.gitkeep
+
+# Go
+vendor/
+*.exe
+*.out
+*.dll
+*.so
+*.dylib
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+.npm
+.yarn
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

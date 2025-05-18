@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Traffic Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.5.0/Recharts.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.13/babel.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css"/>
+</head>
+<body class="bg-gray-100">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const { 
+            LineChart, Line, XAxis, YAxis, CartesianGrid, 
+            Tooltip, Legend, ResponsiveContainer 
+        } = Recharts;
+
+        // Configuration component
+        const ConfigPanel = ({ config, setConfig, isRunning }) => {
+            const [localConfig, setLocalConfig] = useState(config);
+
+            useEffect(() => {
+                setLocalConfig(config);
+            }, [config]);
+
+            const handleChange = (e) => {
+                const { name, value } = e.target;
+                let parsedValue = value;
+                
+                // Parse numeric values
+                if (name !== 'pattern' && name !== 'targetIP') {
+                    parsedValue = name === 'bellPeakRatio' ? parseFloat(value) : parseInt(value, 10);
+                }
+                
+                setLocalConfig({ ...localConfig, [name]: parsedValue });
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                setConfig(localConfig);
+                
+                // Send config to server
+                fetch('/api/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(localConfig),
+                });
+            };
+
+            return (
+                <div className="bg-white p-4 rounded shadow-md">
+                    <h2 className="text-xl font-bold mb-4">Traffic Configuration</h2>
+                    <form onSubmit={handleSubmit}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Pattern</label>
+                                <select 
+                                    name="pattern"
+                                    value={localConfig.pattern}
+                                    onChange={handleChange}
+                                    disabled={isRunning}
+                                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                                >
+                                    <option value="bell">Bell Curve</option>
+                                    <option value="constant">Constant</option>
+                                    <option value="random">Random</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Duration (seconds)</label>
+                                <input 
+                                    type="number" 
+                                    name="duration"
+                                    min="1"
+                                    max="3600"
+                                    value={localConfig.duration}
+                                    onChange={handleChange}
+                                    disabled={isRunning}
+                                    className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Max Bandwidth (Mbps)</label>
+                                <input 
+                                    type="number" 
+                                    name="maxBandwidth"
+                                    min="1"
+                                    max="10000"
+                                    value={localConfig.maxBandwidth}
+                                    onChange={handleChange}
+                                    disabled={isRunning}
+                                    className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Target IP</label>
+                                <input 
+                                    type="text" 
+                                    name="targetIP"
+                                    value={localConfig.targetIP}
+                                    onChange={handleChange}
+                                    disabled={isRunning}
+                                    className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Target Port</label>
+                                <input 
+                                    type="number" 
+                                    name="targetPort"
+                                    min="1"
+                                    max="65535"
+                                    value={localConfig.targetPort}
+                                    onChange={handleChange}
+                                    disabled={isRunning}
+                                    className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                                />
+                            </div>
+                            
+                            {localConfig.pattern === 'bell' && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Bell Peak Position (0-1)</label>
+                                    <input 
+                                        type="number" 
+                                        name="bellPeakRatio"
+                                        min="0"
+                                        max="1"
+                                        step="0.1"
+                                        value={localConfig.bellPeakRatio}
+                                        onChange={handleChange}
+                                        disabled={isRunning}
+                                        className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                                    />
+                                </div>
+                            )}
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Packet Size (bytes)</label>
+                                <input 
+                                    type="number" 
+                                    name="packetSize"
+                                    min="64"
+                                    max="9000"
+                                    value={localConfig.packetSize}
+                                    onChange={handleChange}
+                                    disabled={isRunning}
+                                    className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                                />
+                            </div>
+                        </div>
+                        
+                        <div className="mt-4">
+                            <button
+                                type="submit"
+                                disabled={isRunning}
+                                className={`inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white ${isRunning ? 'bg-gray-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                            >
+                                Apply Configuration
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            );
+        };
+
+        // Traffic chart component
+        const TrafficChart = ({ dataPoints }) => {
+            return (
+                <div className="bg-white p-4 rounded shadow-md">
+                    <h2 className="text-xl font-bold mb-4">Traffic Pattern</h2>
+                    <div style={{ width: '100%', height: 300 }}>
+                        <ResponsiveContainer>
+                            <LineChart
+                                data={dataPoints}
+                                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                            >
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis 
+                                    dataKey="time" 
+                                    label={{ value: 'Time (seconds)', position: 'insideBottomRight', offset: -10 }}
+                                />
+                                <YAxis 
+                                    label={{ value: 'Bandwidth (Mbps)', angle: -90, position: 'insideLeft' }}
+                                />
+                                <Tooltip />
+                                <Legend />
+                                <Line 
+                                    type="monotone" 
+                                    dataKey="bandwidth" 
+                                    stroke="#8884d8" 
+                                    activeDot={{ r: 8 }} 
+                                    name="Bandwidth"
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            );
+        };
+
+        // Metrics display component
+        const MetricsDisplay = ({ metrics, isRunning }) => {
+            return (
+                <div className="bg-white p-4 rounded shadow-md">
+                    <h2 className="text-xl font-bold mb-4">Traffic Metrics</h2>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <p className="text-sm text-gray-500">Current Bandwidth</p>
+                            <p className="text-lg font-semibold">{metrics.currentBandwidth.toFixed(2)} Mbps</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-500">Total Data Sent</p>
+                            <p className="text-lg font-semibold">{formatBytes(metrics.totalSent)}</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-500">Elapsed Time</p>
+                            <p className="text-lg font-semibold">{metrics.elapsedTime.toFixed(1)} seconds</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-500">Status</p>
+                            <p className={`text-lg font-semibold ${isRunning ? 'text-green-600' : 'text-red-600'}`}>
+                                {isRunning ? 'Running' : 'Stopped'}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Utility function to format bytes
+        const formatBytes = (bytes) => {
+            if (bytes === 0) return '0 Bytes';
+            
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        };
+
+        // Main App component
+        const App = () => {
+            const [config, setConfig] = useState({
+                pattern: 'bell',
+                duration: 60,
+                maxBandwidth: 100,
+                targetIP: '127.0.0.1',
+                targetPort: 8080,
+                bellPeakRatio: 0.5,
+                packetSize: 1400
+            });
+            const [isRunning, setIsRunning] = useState(false);
+            const [metrics, setMetrics] = useState({
+                currentBandwidth: 0,
+                totalSent: 0,
+                elapsedTime: 0
+            });
+            const [dataPoints, setDataPoints] = useState([]);
+            const ws = useRef(null);
+
+            // Connect to WebSocket for real-time updates
+            useEffect(() => {
+                const connectWebSocket = () => {
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const wsUrl = `${protocol}//${window.location.host}/ws`;
+                    
+                    ws.current = new WebSocket(wsUrl);
+                    
+                    ws.current.onopen = () => {
+                        console.log('WebSocket connected');
+                    };
+                    
+                    ws.current.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+                        
+                        // Check if we received initial state
+                        if (data.config) {
+                            setConfig(data.config);
+                            setIsRunning(data.isRunning);
+                            setMetrics(data.metrics);
+                        } 
+                        // Regular metrics update
+                        else if (data.currentBandwidth !== undefined) {
+                            setMetrics(data);
+                            setDataPoints(prevPoints => {
+                                const newPoints = [...prevPoints, {
+                                    time: data.elapsedTime.toFixed(1),
+                                    bandwidth: parseFloat(data.currentBandwidth.toFixed(2))
+                                }];
+                                
+                                // Keep only the last 100 points to avoid performance issues
+                                if (newPoints.length > 100) {
+                                    return newPoints.slice(-100);
+                                }
+                                return newPoints;
+                            });
+                        }
+                    };
+                    
+                    ws.current.onclose = () => {
+                        console.log('WebSocket disconnected, trying to reconnect...');
+                        setTimeout(connectWebSocket, 2000);
+                    };
+                    
+                    ws.current.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                    };
+                };
+                
+                connectWebSocket();
+                
+                return () => {
+                    if (ws.current) {
+                        ws.current.close();
+                    }
+                };
+            }, []);
+
+            // Start traffic generation
+            const handleStart = () => {
+                fetch('/api/start', { method: 'POST' })
+                    .then(response => {
+                        if (response.ok) {
+                            setIsRunning(true);
+                            setDataPoints([]);
+                        }
+                    })
+                    .catch(error => console.error('Error starting generator:', error));
+            };
+
+            // Stop traffic generation
+            const handleStop = () => {
+                fetch('/api/stop', { method: 'POST' })
+                    .then(response => {
+                        if (response.ok) {
+                            setIsRunning(false);
+                        }
+                    })
+                    .catch(error => console.error('Error stopping generator:', error));
+            };
+
+            return (
+                <div className="container mx-auto px-4 py-8">
+                    <h1 className="text-3xl font-bold mb-8 text-center">Network Traffic Generator</h1>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-1">
+                            <ConfigPanel config={config} setConfig={setConfig} isRunning={isRunning} />
+                            
+                            <div className="mt-6 bg-white p-4 rounded shadow-md">
+                                <h2 className="text-xl font-bold mb-4">Controls</h2>
+                                <div className="flex space-x-4">
+                                    <button
+                                        onClick={handleStart}
+                                        disabled={isRunning}
+                                        className={`flex-1 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${isRunning ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'}`}
+                                    >
+                                        Start
+                                    </button>
+                                    <button
+                                        onClick={handleStop}
+                                        disabled={!isRunning}
+                                        className={`flex-1 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${!isRunning ? 'bg-gray-400' : 'bg-red-600 hover:bg-red-700'}`}
+                                    >
+                                        Stop
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <MetricsDisplay metrics={metrics} isRunning={isRunning} />
+                        </div>
+                        
+                        <div className="lg:col-span-2">
+                            <TrafficChart dataPoints={dataPoints} />
+                            
+                            <div className="mt-6 bg-white p-4 rounded shadow-md">
+                                <h2 className="text-xl font-bold mb-4">How to Use</h2>
+                                <ol className="list-decimal list-inside space-y-2">
+                                    <li>Configure your traffic pattern, duration, and bandwidth</li>
+                                    <li>Set the target IP and port (should be listening for UDP traffic)</li>
+                                    <li>Click "Apply Configuration" to save settings</li>
+                                    <li>Press "Start" to begin generating traffic</li>
+                                    <li>Monitor the real-time traffic graph and metrics</li>
+                                    <li>The traffic will automatically stop after the configured duration</li>
+                                </ol>
+                                <div className="mt-4 p-3 bg-yellow-50 rounded">
+                                    <p className="text-yellow-700">
+                                        <strong>Note:</strong> This tool generates real network traffic. 
+                                        Make sure your target system is ready to receive the traffic and 
+                                        your network can handle the configured bandwidth.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
